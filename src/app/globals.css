@@ -279,12 +279,6 @@ nav {
   max-width: 500px;
 }
 
-.section-arrow {
-  stroke: var(--color-black);
-  fill: none;
-  stroke-width: 2px;
-}
-
 .filter-row {
   display: flex;
   gap: 16px;

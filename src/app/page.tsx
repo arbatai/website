@@ -180,15 +180,6 @@ export default function Home() {
           <div className="container">
             <div className="section-header">
               <h2 className="section-title">Rituals from the Homeland</h2>
-              <svg
-                width="100"
-                height="40"
-                viewBox="0 0 100 40"
-                className="section-arrow"
-                aria-hidden="true"
-              >
-                <path d="M0,20 Q50,0 90,20 L80,10 M90,20 L80,30" />
-              </svg>
             </div>
 
             <div className="filter-row" role="group" aria-label="Tea filters">
