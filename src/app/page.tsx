@@ -122,17 +122,18 @@ export default function Home() {
           </a>
           <button className="btn-reset cart-count" type="button" aria-label="Basket">
             <svg
-              width="28"
-              height="28"
+              width="22"
+              height="22"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="1.75"
               strokeLinecap="round"
               strokeLinejoin="round"
               aria-hidden="true"
             >
-              <path d="M2 3h3l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-1.4 7M17 13l1.4 7M7 20a1 1 0 1 0 0 2 1 1 0 0 0 0-2zM17 20a1 1 0 1 0 0 2 1 1 0 0 0 0-2z" />
+              <path d="M6 8h12l-1 13H7L6 8Z" />
+              <path d="M9 8V6a3 3 0 0 1 6 0v2" />
             </svg>
             <span className="cart-badge" aria-hidden="true">
               2

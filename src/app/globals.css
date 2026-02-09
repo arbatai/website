@@ -113,27 +113,48 @@ nav {
 
 .cart-count {
   position: relative;
-  width: 32px;
-  height: 32px;
+  width: 42px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 9999px;
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
+  background: var(--color-white-trans);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
+  transition:
+    transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.cart-count:hover {
+  transform: rotate(-3deg) scale(1.04);
+  border-color: rgba(0, 0, 0, 0.6);
+  background-color: rgba(255, 255, 255, 0.95);
+}
+
+.cart-count:focus-visible {
+  outline: 3px solid rgba(0, 0, 0, 0.2);
+  outline-offset: 3px;
 }
 
 .cart-badge {
   position: absolute;
-  top: -4px;
-  right: -4px;
+  top: -6px;
+  right: -6px;
   background: var(--color-pink);
   color: var(--color-black);
   border-radius: 50%;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   font-size: 10px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 /* Hero */
