@@ -1,44 +1,68 @@
 import "server-only";
 
-import { promises as fs } from "node:fs";
-import path from "node:path";
+import { turso } from "@/lib/turso/db";
 
-import type { CatalogData } from "./types";
+import type { CatalogData, Category, Product } from "./types";
 
-const CATALOG_PATH = path.join(process.cwd(), "data", "catalog.json");
-
-function defaultCatalog(nowIso: string): CatalogData {
-  return {
-    version: 1,
-    updatedAt: nowIso,
-    categories: [],
-    products: [],
-  };
+function rowString(v: unknown): string {
+  if (typeof v === "string") return v;
+  if (v === null || v === undefined) return "";
+  return String(v);
 }
 
 export async function readCatalog(): Promise<CatalogData> {
-  const nowIso = new Date().toISOString();
-  try {
-    const raw = await fs.readFile(CATALOG_PATH, "utf8");
-    const parsed = JSON.parse(raw) as CatalogData;
-    if (parsed?.version !== 1 || !Array.isArray(parsed.categories) || !Array.isArray(parsed.products)) {
-      return defaultCatalog(nowIso);
-    }
-    return parsed;
-  } catch (err) {
-    const e = err as NodeJS.ErrnoException;
-    if (e.code === "ENOENT") return defaultCatalog(nowIso);
-    throw err;
-  }
-}
+  const db = await turso();
 
-export async function writeCatalog(next: CatalogData): Promise<void> {
-  const dir = path.dirname(CATALOG_PATH);
-  await fs.mkdir(dir, { recursive: true });
+  const categoriesRes = await db.execute(
+    "SELECT id, name, created_at AS createdAt FROM categories ORDER BY name COLLATE NOCASE ASC;"
+  );
+  const productsRes = await db.execute(
+    `
+      SELECT
+        id,
+        category_id AS categoryId,
+        name,
+        description,
+        price_label AS priceLabel,
+        image_url AS imageUrl,
+        image_alt AS imageAlt,
+        badge_text AS badgeText,
+        badge_variant AS badgeVariant,
+        created_at AS createdAt
+      FROM products
+      ORDER BY created_at DESC;
+    `
+  );
 
-  const tmpPath = `${CATALOG_PATH}.tmp`;
-  const payload = JSON.stringify(next, null, 2) + "\n";
-  await fs.writeFile(tmpPath, payload, "utf8");
-  await fs.rename(tmpPath, CATALOG_PATH);
+  const categories: Category[] = categoriesRes.rows.map((r) => ({
+    id: rowString(r.id),
+    name: rowString(r.name),
+    createdAt: rowString(r.createdAt),
+  }));
+
+  const products: Product[] = productsRes.rows.map((r) => {
+    const badgeText = r.badgeText === null || r.badgeText === undefined ? undefined : rowString(r.badgeText);
+    const badgeVariant =
+      r.badgeVariant === null || r.badgeVariant === undefined ? undefined : (rowString(r.badgeVariant) as Product["badgeVariant"]);
+    return {
+      id: rowString(r.id),
+      categoryId: rowString(r.categoryId),
+      name: rowString(r.name),
+      description: rowString(r.description),
+      priceLabel: rowString(r.priceLabel),
+      imageUrl: rowString(r.imageUrl),
+      imageAlt: rowString(r.imageAlt),
+      badgeText,
+      badgeVariant,
+      createdAt: rowString(r.createdAt),
+    };
+  });
+
+  return {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    categories,
+    products,
+  };
 }
 

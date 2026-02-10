@@ -2,6 +2,8 @@ import ProductsSection from "@/components/ProductsSection";
 import NavBar from "@/components/NavBar";
 import { getPublicCatalog } from "@/lib/catalog/public";
 
+export const dynamic = "force-dynamic";
+
 type StoryItem = {
   title: string;
   description: string;

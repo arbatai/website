@@ -2,8 +2,9 @@ import "server-only";
 
 import crypto from "node:crypto";
 
-import type { CatalogData, Category, Product, ProductBadgeVariant } from "./types";
-import { readCatalog, writeCatalog } from "./store";
+import { turso } from "@/lib/turso/db";
+
+import type { Category, Product, ProductBadgeVariant } from "./types";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -18,18 +19,18 @@ function slugify(input: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-function uniqueId(base: string, used: Set<string>): string {
-  if (!used.has(base)) return base;
-  for (let i = 0; i < 10; i += 1) {
-    const suffix = crypto.randomBytes(2).toString("hex");
-    const candidate = `${base}-${suffix}`;
-    if (!used.has(candidate)) return candidate;
-  }
-  return crypto.randomUUID();
-}
-
 function normalizeName(s: string): string {
   return s.trim().replace(/\s+/g, " ");
+}
+
+function isUniqueConstraintError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.toLowerCase().includes("unique constraint failed");
+}
+
+function isPrimaryKeyConstraintError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.toLowerCase().includes("unique constraint failed") && msg.toLowerCase().includes(".id");
 }
 
 export async function createCategory(nameRaw: string): Promise<Category> {
@@ -37,41 +38,44 @@ export async function createCategory(nameRaw: string): Promise<Category> {
   if (!name) throw new Error("Category name is required.");
   if (name.length > 60) throw new Error("Category name is too long (max 60 chars).");
 
-  const catalog = await readCatalog();
-  const exists = catalog.categories.some((c) => c.name.toLowerCase() === name.toLowerCase());
-  if (exists) throw new Error("Category already exists.");
-
-  const usedIds = new Set(catalog.categories.map((c) => c.id));
-  const baseId = slugify(name) || crypto.randomUUID();
-  const id = uniqueId(baseId, usedIds);
-
+  const db = await turso();
   const createdAt = nowIso();
-  const category: Category = { id, name, createdAt };
 
-  const next: CatalogData = {
-    ...catalog,
-    updatedAt: createdAt,
-    categories: [...catalog.categories, category],
-  };
-  await writeCatalog(next);
-  return category;
+  const baseId = slugify(name) || crypto.randomUUID();
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const id =
+      attempt === 0 ? baseId : `${baseId}-${crypto.randomBytes(2).toString("hex")}`;
+    try {
+      await db.execute({
+        sql: "INSERT INTO categories (id, name, created_at) VALUES (?, ?, ?);",
+        args: [id, name, createdAt],
+      });
+      return { id, name, createdAt };
+    } catch (err) {
+      if (isUniqueConstraintError(err)) {
+        // Name unique constraint is case-insensitive, so treat as a user-friendly error.
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.toLowerCase().includes("categories.name")) {
+          throw new Error("Category already exists.");
+        }
+      }
+      if (isPrimaryKeyConstraintError(err)) continue;
+      throw err;
+    }
+  }
+
+  throw new Error("Failed to create category (id collision).");
 }
 
 export async function deleteCategory(categoryId: string): Promise<void> {
-  const catalog = await readCatalog();
-  const beforeCount = catalog.categories.length;
-  const nextCategories = catalog.categories.filter((c) => c.id !== categoryId);
-  if (nextCategories.length === beforeCount) return;
+  const id = categoryId.trim();
+  if (!id) return;
+  const db = await turso();
 
-  const nextProducts = catalog.products.filter((p) => p.categoryId !== categoryId);
-  const updatedAt = nowIso();
-  const next: CatalogData = {
-    ...catalog,
-    updatedAt,
-    categories: nextCategories,
-    products: nextProducts,
-  };
-  await writeCatalog(next);
+  // Explicitly delete products as a safety net even though we have ON DELETE CASCADE.
+  await db.execute({ sql: "DELETE FROM products WHERE category_id = ?;", args: [id] });
+  await db.execute({ sql: "DELETE FROM categories WHERE id = ?;", args: [id] });
 }
 
 export type CreateProductInput = {
@@ -117,45 +121,67 @@ export async function createProduct(input: CreateProductInput): Promise<Product>
     throw new Error("Badge variant is invalid.");
   }
 
-  const catalog = await readCatalog();
-  const categoryExists = catalog.categories.some((c) => c.id === categoryId);
-  if (!categoryExists) throw new Error("Category does not exist.");
+  const db = await turso();
 
-  const usedIds = new Set(catalog.products.map((p) => p.id));
-  const baseId = slugify(name) || crypto.randomUUID();
-  const id = uniqueId(baseId, usedIds);
+  const categoryExists = await db.execute({
+    sql: "SELECT 1 FROM categories WHERE id = ? LIMIT 1;",
+    args: [categoryId],
+  });
+  if (categoryExists.rows.length === 0) throw new Error("Category does not exist.");
 
   const createdAt = nowIso();
-  const product: Product = {
-    id,
-    categoryId,
-    name,
-    description,
-    priceLabel,
-    imageUrl,
-    imageAlt,
-    badgeText,
-    badgeVariant,
-    createdAt,
-  };
+  const baseId = slugify(name) || crypto.randomUUID();
 
-  const next: CatalogData = {
-    ...catalog,
-    updatedAt: createdAt,
-    products: [...catalog.products, product],
-  };
-  await writeCatalog(next);
-  return product;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const id =
+      attempt === 0 ? baseId : `${baseId}-${crypto.randomBytes(2).toString("hex")}`;
+    try {
+      await db.execute({
+        sql: `
+          INSERT INTO products (
+            id, category_id, name, description, price_label,
+            image_url, image_alt, badge_text, badge_variant, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        `,
+        args: [
+          id,
+          categoryId,
+          name,
+          description,
+          priceLabel,
+          imageUrl,
+          imageAlt,
+          badgeText ?? null,
+          badgeVariant ?? null,
+          createdAt,
+        ],
+      });
+
+      return {
+        id,
+        categoryId,
+        name,
+        description,
+        priceLabel,
+        imageUrl,
+        imageAlt,
+        badgeText,
+        badgeVariant,
+        createdAt,
+      };
+    } catch (err) {
+      if (isPrimaryKeyConstraintError(err)) continue;
+      throw err;
+    }
+  }
+
+  throw new Error("Failed to create product (id collision).");
 }
 
 export async function deleteProduct(productId: string): Promise<void> {
-  const catalog = await readCatalog();
-  const beforeCount = catalog.products.length;
-  const nextProducts = catalog.products.filter((p) => p.id !== productId);
-  if (nextProducts.length === beforeCount) return;
-
-  const updatedAt = nowIso();
-  const next: CatalogData = { ...catalog, updatedAt, products: nextProducts };
-  await writeCatalog(next);
+  const id = productId.trim();
+  if (!id) return;
+  const db = await turso();
+  await db.execute({ sql: "DELETE FROM products WHERE id = ?;", args: [id] });
 }
 
