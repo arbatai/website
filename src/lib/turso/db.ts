@@ -54,8 +54,23 @@ async function initSchema(db: Client): Promise<void> {
     );
   `);
 
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS product_images (
+      id TEXT PRIMARY KEY,
+      product_id TEXT NOT NULL,
+      url TEXT NOT NULL,
+      alt TEXT NOT NULL,
+      sort_order INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
+    );
+  `);
+
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id);`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(created_at);`);
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_product_images_product_id_sort ON product_images(product_id, sort_order);`
+  );
 }
 
 export async function turso(): Promise<Client> {
@@ -64,4 +79,3 @@ export async function turso(): Promise<Client> {
   await schemaInit;
   return db;
 }
-

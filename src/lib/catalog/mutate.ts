@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 
 import { turso } from "@/lib/turso/db";
 
-import type { Category, Product, ProductBadgeVariant } from "./types";
+import type { Category, Product, ProductBadgeVariant, ProductImage } from "./types";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -21,6 +21,27 @@ function slugify(input: string): string {
 
 function normalizeName(s: string): string {
   return s.trim().replace(/\s+/g, " ");
+}
+
+function validateImageUrl(imageUrl: string): void {
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(imageUrl);
+  } catch {
+    throw new Error("Image URL is invalid.");
+  }
+
+  if (parsedUrl.protocol === "https:") return;
+  // Local testing with vercel-blob-server returns http://localhost URLs.
+  if (
+    parsedUrl.protocol === "http:" &&
+    process.env.NODE_ENV !== "production" &&
+    (parsedUrl.hostname === "localhost" || parsedUrl.hostname === "127.0.0.1")
+  ) {
+    return;
+  }
+
+  throw new Error("Image URL must be https (or http://localhost in development).");
 }
 
 function isUniqueConstraintError(err: unknown): boolean {
@@ -108,14 +129,7 @@ export async function createProduct(input: CreateProductInput): Promise<Product>
   if (priceLabel.length > 20) throw new Error("Price is too long.");
   if (!imageUrl) throw new Error("Image URL is required.");
   if (imageUrl.length > 2000) throw new Error("Image URL is too long.");
-
-  let parsedUrl: URL | undefined;
-  try {
-    parsedUrl = new URL(imageUrl);
-  } catch {
-    throw new Error("Image URL is invalid.");
-  }
-  if (parsedUrl.protocol !== "https:") throw new Error("Image URL must be https.");
+  validateImageUrl(imageUrl);
 
   if (badgeVariant && badgeVariant !== "default" && badgeVariant !== "hot") {
     throw new Error("Badge variant is invalid.");
@@ -157,6 +171,15 @@ export async function createProduct(input: CreateProductInput): Promise<Product>
         ],
       });
 
+      const primary: ProductImage = {
+        id: `primary:${id}`,
+        productId: id,
+        url: imageUrl,
+        alt: imageAlt,
+        sortOrder: 0,
+        createdAt,
+      };
+
       return {
         id,
         categoryId,
@@ -165,6 +188,7 @@ export async function createProduct(input: CreateProductInput): Promise<Product>
         priceLabel,
         imageUrl,
         imageAlt,
+        images: [primary],
         badgeText,
         badgeVariant,
         createdAt,
@@ -178,10 +202,68 @@ export async function createProduct(input: CreateProductInput): Promise<Product>
   throw new Error("Failed to create product (id collision).");
 }
 
+export async function addProductImages(
+  productIdRaw: string,
+  images: Array<{ url: string; alt: string }>
+): Promise<void> {
+  const productId = productIdRaw.trim();
+  if (!productId) throw new Error("Missing product id.");
+  if (images.length === 0) return;
+
+  const normalized = images
+    .map((img) => ({
+      url: img.url.trim(),
+      alt: img.alt.trim(),
+    }))
+    .filter((img) => img.url);
+
+  if (normalized.length === 0) return;
+  for (const img of normalized) {
+    if (img.url.length > 2000) throw new Error("Image URL is too long.");
+    validateImageUrl(img.url);
+    if (!img.alt) throw new Error("Image alt is required.");
+    if (img.alt.length > 120) throw new Error("Image alt is too long (max 120 chars).");
+  }
+
+  const db = await turso();
+
+  const exists = await db.execute({
+    sql: "SELECT 1 FROM products WHERE id = ? LIMIT 1;",
+    args: [productId],
+  });
+  if (exists.rows.length === 0) throw new Error("Product does not exist.");
+
+  const maxRes = await db.execute({
+    sql: "SELECT MAX(sort_order) AS maxSort FROM product_images WHERE product_id = ?;",
+    args: [productId],
+  });
+  const maxSortRaw = maxRes.rows[0]?.maxSort;
+  const maxSort = typeof maxSortRaw === "number" ? maxSortRaw : Number(maxSortRaw ?? 0);
+  const baseSort = Number.isFinite(maxSort) ? Math.max(0, Math.floor(maxSort)) : 0;
+
+  const createdAt = nowIso();
+  for (let i = 0; i < normalized.length; i += 1) {
+    const img = normalized[i]!;
+    await db.execute({
+      sql: `
+        INSERT INTO product_images (id, product_id, url, alt, sort_order, created_at)
+        VALUES (?, ?, ?, ?, ?, ?);
+      `,
+      args: [
+        crypto.randomUUID(),
+        productId,
+        img.url,
+        img.alt,
+        baseSort + 1 + i,
+        createdAt,
+      ],
+    });
+  }
+}
+
 export async function deleteProduct(productId: string): Promise<void> {
   const id = productId.trim();
   if (!id) return;
   const db = await turso();
   await db.execute({ sql: "DELETE FROM products WHERE id = ?;", args: [id] });
 }
-

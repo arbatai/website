@@ -4,6 +4,7 @@ import { isBackofficeAuthed } from "@/lib/backoffice/auth";
 import { readCatalog } from "@/lib/catalog/store";
 
 import {
+  addProductImagesAction,
   createCategoryAction,
   createProductAction,
   deleteCategoryAction,
@@ -120,10 +121,11 @@ export default async function BackofficePage({
           <section className="bo__card">
             <h2>Products</h2>
             <p className="bo__hint">
-              Product images must be <code>https</code> URLs. Price is a label, e.g. <code>£12.00</code>.
+              Upload one or more images (stored in Vercel Blob). The first image becomes the product
+              cover. Price is a label, e.g. <code>£12.00</code>.
             </p>
 
-            <form className="bo__form" action={createProductAction}>
+            <form className="bo__form" action={createProductAction} encType="multipart/form-data">
               <div className="bo__row">
                 <div className="bo__field">
                   <label htmlFor="p-category">Category</label>
@@ -176,18 +178,64 @@ export default async function BackofficePage({
               </div>
 
               <div className="bo__field">
-                <label htmlFor="p-image">Image URL</label>
+                <label htmlFor="p-images">Images</label>
                 <input
-                  id="p-image"
-                  name="imageUrl"
-                  type="url"
-                  placeholder="https://images.unsplash.com/…"
+                  id="p-images"
+                  name="images"
+                  type="file"
+                  accept="image/*"
+                  multiple
                   required
                 />
               </div>
 
               <button className="bo__btn" type="submit">
                 Create product
+              </button>
+            </form>
+
+            <div className="bo__divider" />
+
+            <form className="bo__form" action={addProductImagesAction} encType="multipart/form-data">
+              <div className="bo__row">
+                <div className="bo__field">
+                  <label htmlFor="p-existing">Add images to product</label>
+                  <select id="p-existing" name="productId" required defaultValue="">
+                    <option value="" disabled>
+                      Select…
+                    </option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="bo__field">
+                  <label htmlFor="p-existing-alt">Alt (optional)</label>
+                  <input
+                    id="p-existing-alt"
+                    name="imageAlt"
+                    type="text"
+                    placeholder="Descriptive alt text"
+                  />
+                </div>
+              </div>
+
+              <div className="bo__field">
+                <label htmlFor="p-existing-images">Images</label>
+                <input
+                  id="p-existing-images"
+                  name="images"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  required
+                />
+              </div>
+
+              <button className="bo__btn bo__btn--ghost" type="submit">
+                Add images
               </button>
             </form>
 
@@ -201,7 +249,8 @@ export default async function BackofficePage({
                     <div>
                       <strong>{p.name}</strong> <span className="bo__meta">{p.priceLabel}</span>
                       <div className="bo__meta">
-                        {cat ? cat.name : <code>(missing category)</code>} · <code>{p.id}</code>
+                        {cat ? cat.name : <code>(missing category)</code>} ·{" "}
+                        <strong>{p.images.length}</strong> images · <code>{p.id}</code>
                       </div>
                     </div>
                     <form action={deleteProductAction}>

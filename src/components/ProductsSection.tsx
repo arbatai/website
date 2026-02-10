@@ -38,6 +38,8 @@ export default function ProductsSection({
     window.setTimeout(() => setJustAddedId(""), 900);
   };
 
+  const [imageIndexById, setImageIndexById] = useState<Record<string, number>>({});
+
   return (
     <section className="products-section" id="shop">
       <div className="container">
@@ -68,17 +70,60 @@ export default function ProductsSection({
         </div>
 
         <div className="product-grid">
-          {filtered.map((p) => (
-            <article className="product-card" key={p.id}>
+          {filtered.map((p) => {
+            const images = p.images?.length ? p.images : [];
+            const currentRaw = imageIndexById[p.id] ?? 0;
+            const count = images.length;
+            const current = count > 0 ? ((currentRaw % count) + count) % count : 0;
+            const active = images[current];
+
+            const goPrev = () => {
+              if (count <= 1) return;
+              setImageIndexById((prev) => ({
+                ...prev,
+                [p.id]: (current - 1 + count) % count,
+              }));
+            };
+
+            const goNext = () => {
+              if (count <= 1) return;
+              setImageIndexById((prev) => ({
+                ...prev,
+                [p.id]: (current + 1) % count,
+              }));
+            };
+
+            return (
+              <article className="product-card" key={p.id}>
               <div className="card-image-wrapper">
                 {p.badgeText ? (
                   <div className={`card-sticker${p.badgeVariant === "hot" ? " hot" : ""}`}>
                     {p.badgeText}
                   </div>
                 ) : null}
+                {count > 1 ? (
+                  <>
+                    <button
+                      className="card-nav card-nav--left"
+                      type="button"
+                      aria-label={`Previous image for ${p.name}`}
+                      onClick={goPrev}
+                    >
+                      <span aria-hidden="true">‹</span>
+                    </button>
+                    <button
+                      className="card-nav card-nav--right"
+                      type="button"
+                      aria-label={`Next image for ${p.name}`}
+                      onClick={goNext}
+                    >
+                      <span aria-hidden="true">›</span>
+                    </button>
+                  </>
+                ) : null}
                 <img
-                  src={p.imageUrl}
-                  alt={p.imageAlt || p.name}
+                  src={active?.url || p.imageUrl}
+                  alt={active?.alt || p.imageAlt || p.name}
                   className="card-img"
                   loading="lazy"
                   decoding="async"
@@ -95,7 +140,8 @@ export default function ProductsSection({
                 {justAddedId === p.id ? "Added" : "Add to Basket"}
               </button>
             </article>
-          ))}
+            );
+          })}
 
           {filtered.length === 0 ? (
             <div style={{ padding: "12px 40px", color: "#444" }}>

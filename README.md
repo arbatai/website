@@ -21,15 +21,25 @@ Styles: `src/app/globals.css`
 
 ## Backoffice / Inventory
 
-Inventory (categories/products) is stored in Turso (libSQL).
+Inventory (categories/products) is stored in Turso (libSQL). Product images are stored in Vercel Blob.
 
 Create a `.env.local` (see `.env.example`) with:
 
 - `BACKOFFICE_PASSWORD`
 - `TURSO_DATABASE_URL`
 - `TURSO_AUTH_TOKEN`
+- `BLOB_READ_WRITE_TOKEN`
 
 Backoffice: `http://localhost:3000/backoffice`
+
+### Local Vercel Blob testing
+
+For local image uploads, you can run a local Blob API compatible server: https://github.com/634750802/vercel-blob-server
+
+Then set (example):
+
+- `BLOB_READ_WRITE_TOKEN=vercel_blob_rw_somefakeid_nonce`
+- `VERCEL_BLOB_API_URL=http://localhost:9966`
 
 ## Learn More
 

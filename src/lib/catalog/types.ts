@@ -6,6 +6,15 @@ export type Category = {
 
 export type ProductBadgeVariant = "default" | "hot";
 
+export type ProductImage = {
+  id: string;
+  productId: string;
+  url: string;
+  alt: string;
+  sortOrder: number;
+  createdAt: string;
+};
+
 export type Product = {
   id: string;
   categoryId: string;
@@ -14,6 +23,7 @@ export type Product = {
   priceLabel: string;
   imageUrl: string;
   imageAlt: string;
+  images: ProductImage[];
   badgeText?: string;
   badgeVariant?: ProductBadgeVariant;
   createdAt: string;
@@ -25,4 +35,3 @@ export type CatalogData = {
   categories: Category[];
   products: Product[];
 };
-
