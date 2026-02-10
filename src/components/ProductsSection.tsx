@@ -4,6 +4,7 @@
 
 import { useMemo, useState } from "react";
 
+import { useCart } from "@/components/CartProvider";
 import type { Category, Product } from "@/lib/catalog/types";
 
 export default function ProductsSection({
@@ -14,11 +15,28 @@ export default function ProductsSection({
   products: Product[];
 }) {
   const [activeCategoryId, setActiveCategoryId] = useState<string>("all");
+  const [justAddedId, setJustAddedId] = useState<string>("");
+  const cart = useCart();
 
   const filtered = useMemo(() => {
     if (activeCategoryId === "all") return products;
     return products.filter((p) => p.categoryId === activeCategoryId);
   }, [activeCategoryId, products]);
+
+  const onAdd = (p: Product) => {
+    cart.add(
+      {
+        id: p.id,
+        name: p.name,
+        priceLabel: p.priceLabel,
+        imageUrl: p.imageUrl,
+        imageAlt: p.imageAlt || p.name,
+      },
+      1
+    );
+    setJustAddedId(p.id);
+    window.setTimeout(() => setJustAddedId(""), 900);
+  };
 
   return (
     <section className="products-section" id="shop">
@@ -73,8 +91,8 @@ export default function ProductsSection({
                 </div>
                 <span className="product-price">{p.priceLabel}</span>
               </div>
-              <button className="add-btn" type="button">
-                Add to Basket
+              <button className="add-btn" type="button" onClick={() => onAdd(p)}>
+                {justAddedId === p.id ? "Added" : "Add to Basket"}
               </button>
             </article>
           ))}

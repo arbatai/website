@@ -1,4 +1,5 @@
 import ProductsSection from "@/components/ProductsSection";
+import NavBar from "@/components/NavBar";
 import { getPublicCatalog } from "@/lib/catalog/public";
 
 type StoryItem = {
@@ -72,39 +73,7 @@ export default async function Home() {
   const { categories, products } = await getPublicCatalog();
   return (
     <>
-      <nav aria-label="Primary">
-        <div className="logo">Arbatai.</div>
-        <div className="nav-links">
-          <a className="nav-item" href="#shop">
-            Shop
-          </a>
-          <a className="nav-item" href="#roots">
-            Our Roots
-          </a>
-          <a className="nav-item" href="#shop">
-            Bundles
-          </a>
-          <button className="btn-reset cart-count" type="button" aria-label="Basket">
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.75"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M6 8h12l-1 13H7L6 8Z" />
-              <path d="M9 8V6a3 3 0 0 1 6 0v2" />
-            </svg>
-            <span className="cart-badge" aria-hidden="true">
-              2
-            </span>
-          </button>
-        </div>
-      </nav>
+      <NavBar />
 
       <header className="hero">
         <div className="hero-bg-img" aria-hidden="true" />
